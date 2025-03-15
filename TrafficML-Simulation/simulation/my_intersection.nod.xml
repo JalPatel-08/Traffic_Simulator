@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<nodes>
+    <node id="J0" x="0" y="0" type="traffic_light"/>  <!-- Central Intersection -->
+    <node id="E1" x="-100" y="0" type="priority"/>   <!-- West Road -->
+    <node id="E2" x="100" y="0" type="priority"/>    <!-- East Road -->
+    <node id="E3" x="0" y="100" type="priority"/>    <!-- North Road -->
+    <node id="E4" x="0" y="-100" type="priority"/>   <!-- South Road -->
+</nodes>

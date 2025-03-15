@@ -1,0 +1,3 @@
+junction_id,vehicle_count,current_duration,avg_speed,congestion,signal_duration
+J1,30,20,35.5,0.7,40
+J2,50,30,20.2,0.9,55
