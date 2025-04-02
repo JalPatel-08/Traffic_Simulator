@@ -3,28 +3,30 @@ import pandas as pd
 import joblib
 from sklearn.ensemble import RandomForestRegressor
 from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_absolute_error, r2_score
 
-# Generate synthetic data
-np.random.seed(42)
-data_size = 1000
+# Load real traffic data
+df = pd.read_csv("backend/traffic_data.csv")  # Use your real dataset
 
-df = pd.DataFrame({
-    "vehicle_count": np.random.randint(5, 50, data_size),
-    "current_duration": np.random.randint(10, 90, data_size),
-    "avg_speed": np.random.uniform(10, 50, data_size),
-    "congestion": np.random.uniform(0.1, 1.0, data_size),
-    "optimal_duration": np.random.randint(10, 90, data_size)  # Target variable
-})
-
-# Split into train & test
+# Define features (X) and target (y)
 X = df[["vehicle_count", "current_duration", "avg_speed", "congestion"]]
-y = df["optimal_duration"]
+y = df["signal_duration"]  # Target variable
+
+# Split into training & test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-# Train model
+# Train the model
 model = RandomForestRegressor(n_estimators=100, random_state=42)
 model.fit(X_train, y_train)
 
-# Save model
-joblib.dump(model, "backend/traffic_signal_model.pkl")
-print("Model trained and saved as traffic_signal_model.pkl")
+# Evaluate the model
+y_pred = model.predict(X_test)
+mae = mean_absolute_error(y_test, y_pred)
+r2 = r2_score(y_test, y_pred)
+
+# Save the trained model
+model_path = "backend/traffic_signal_model.pkl"
+joblib.dump(model, model_path)
+
+print(f"✅ Model trained and saved as {model_path}")
+print(f"📊 Model Evaluation - MAE: {mae:.2f}, R² Score: {r2:.2f}")
