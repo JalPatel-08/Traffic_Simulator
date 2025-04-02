@@ -1,47 +1,83 @@
-import paho.mqtt.client as mqtt
+import os
 import json
 import joblib
+import paho.mqtt.client as mqtt
+from flask import Flask, request, jsonify
 import numpy as np
 
-# Load Trained ML Model
-model = joblib.load("backend/traffic_signal_model.pkl")
+app = Flask(__name__) 
 
-# MQTT Configuration
-BROKER = "localhost"  # Change if needed
-TRAFFIC_DATA_TOPIC = "traffic/data"
-SIGNAL_UPDATE_TOPIC = "traffic/signal/update"
+model_path = os.path.join("backend", "traffic_signal_model.pkl")
+model = joblib.load(model_path)
+print("✅ Successfully loaded ML model.")
+
+
+MQTT_BROKER = "localhost"
+MQTT_PORT = 1883
+TRAFFIC_TOPIC = "traffic/data"
+OPTIMIZED_SIGNAL_TOPIC = "traffic/optimized_signal" 
 
 client = mqtt.Client()
 
-def predict_signal(data):
-    """
-    Predict the optimal signal duration using the ML model.
-    """
-    features = np.array([[data["vehicle_count"], data["current_duration"], data["avg_speed"], data["congestion"]]])
-    predicted_time = model.predict(features)[0]
-    return max(10, min(90, predicted_time))  # Ensuring valid duration range
-
 def on_connect(client, userdata, flags, rc):
-    print("Server connected to MQTT broker.")
-    client.subscribe(TRAFFIC_DATA_TOPIC)
+    if rc == 0:
+        print("✅ Connected to MQTT Broker!")
+        client.subscribe(TRAFFIC_TOPIC)
+    else:
+        print(f"⚠️ MQTT Connection failed with code {rc}")
 
 def on_message(client, userdata, msg):
-    """
-    Process incoming traffic data and send optimized signal timings.
-    """
-    traffic_data = json.loads(msg.payload)
-    junction_id = traffic_data["junction_id"]
+    try:
+        traffic_data = json.loads(msg.payload.decode())
+        print(f"📥 Received Traffic Data: {traffic_data}")
 
-    new_duration = predict_signal(traffic_data)
+        input_data = np.array([
+            [
+                traffic_data["vehicle_count"],
+                traffic_data["current_duration"],
+                traffic_data["avg_speed"],
+                traffic_data["congestion"]
+            ]
+        ])
 
-    signal_update = {"junction_id": junction_id, "phase_duration": new_duration}
-    
-    client.publish(SIGNAL_UPDATE_TOPIC, json.dumps(signal_update))
-    print(f"Updated Signal for {junction_id}: {new_duration} sec")
+        predicted_duration = model.predict(input_data)[0]
+        predicted_duration = max(10, min(90, int(predicted_duration)))  # Keep within limits
 
-# Set up MQTT
+        optimized_data = {
+            "junction_id": traffic_data["junction_id"],
+            "optimized_duration": predicted_duration
+        }
+
+        client.publish(OPTIMIZED_SIGNAL_TOPIC, json.dumps(optimized_data))
+        print(f"🚦 Sent Optimized Signal Data: {optimized_data}")
+
+    except Exception as e:
+        print(f"⚠️ Error in processing traffic data: {e}")
+
 client.on_connect = on_connect
 client.on_message = on_message
+client.connect(MQTT_BROKER, MQTT_PORT, 60)
+client.loop_start()
 
-client.connect(BROKER, 1883, 60)
-client.loop_forever()
+@app.route("/predict", methods=["POST"])
+def predict():
+    try:
+        data = request.json
+        input_data = np.array([
+            [
+                data["vehicle_count"],
+                data["current_duration"],
+                data["avg_speed"],
+                data["congestion"]
+            ]
+        ])
+        predicted_duration = model.predict(input_data)[0]
+        predicted_duration = max(10, min(90, int(predicted_duration)))
+
+        return jsonify({"optimized_duration": predicted_duration})
+    
+    except Exception as e:
+        return jsonify({"error": str(e)})
+
+if __name__ == "__main__": 
+    app.run(debug=True)
